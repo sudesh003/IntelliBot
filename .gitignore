@@ -1,0 +1,5 @@
+myenv
+models
+__pycache__/
+keys.env
+db.sqlite3

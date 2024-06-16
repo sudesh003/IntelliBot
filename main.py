@@ -6,10 +6,10 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from io import BytesIO
 from compress_image import compress_image
-from handle_response import handle_response
-from compress_video import compress_video
+from handle_response import getLLMA3Response
 from crawl_website import crawl_website
 from extract_article import extract_article
+from price_comparator import price_comparator
 from dotenv import load_dotenv
 
 load_dotenv('keys.env')
@@ -32,17 +32,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Lets us use the /help command
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text('intelliBot can help you in \n1.chat-gpt search\n2.Image Compression\n3.Web crawler\n4.Article Extraction')
+    await update.message.reply_text('IntelliBot can help you in \n1.Price Comparision\n2.Image Compression\n3.Web crawler\n4.Article Extraction')
 
 # Lets us use the /compress_image command
 async def compress_image_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text('Now send an image to compress')
     context.user_data['compressing_image'] = True
-
-# Lets us use the /compress_video command
-async def compress_video_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text('Now send a video to compress')
-    context.user_data['compressing_video'] = True
 
 # Lets us use the /web_crawler command
 async def web_crawler_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -54,8 +49,22 @@ async def article_extractor_command(update: Update, context: ContextTypes.DEFAUL
     await update.message.reply_text('Now send a website page link to extract an article')
     context.user_data['article_extractor'] = True
 
+# Lets us use the /price_comparator command
+async def price_comparator_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text('Enter the product name')
+    context.user_data['price_comparator'] = True
+
 
 #handle the responses
+
+async def handle_price_comparator(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if 'price_comparator' in context.user_data and context.user_data['price_comparator']:
+        text: str = update.message.text
+        msg=price_comparator(text)
+        # print(msg)
+        await update.message.reply_text(msg)
+        context.user_data['price_comparator']=False
+
 
 async def handle_compressed_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if 'compressing_image' in context.user_data and context.user_data['compressing_image']:
@@ -82,31 +91,6 @@ async def handle_compressed_image(update: Update, context: ContextTypes.DEFAULT_
         await update.message.reply_text('I am not currently compressing an image. Use /compress_image to start the process.')
 
 
-async def handle_compressed_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if 'compressing_video' in context.user_data and context.user_data['compressing_video']:
-        # Check if the message contains a video
-        if update.message.video:
-            # Get the video file ID
-            file_id = update.message.video.file_id
-            # Get the file object by file ID
-            file = await context.bot.get_file(file_id)
-            # Download the video as bytes
-            video_bytes = await file.download_as_bytearray()
-
-            # Compress the video (you need to implement your own video compression logic)
-            compressed_video_bytes = compress_video(video_bytes)
-
-            # Send the compressed video back to the user
-            await update.message.reply_video(BytesIO(compressed_video_bytes), caption='Video compressed!')
-        else:
-            await update.message.reply_text('Please send a valid video.')
-
-        # Reset the flag after processing the video
-        context.user_data['compressing_video'] = False
-    else:
-        await update.message.reply_text('I am not currently compressing a video. Use /compress_video to start the process.')
-
-
 async def handle_crawled_data(update: Update, context:ContextTypes.DEFAULT_TYPE):
     if 'web_crawler' in context.user_data and context.user_data['web_crawler']:
         # Check if the message contains a URL using the regular expression
@@ -131,8 +115,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message_type: str = update.message.chat.type
     text: str = update.message.text
     context.user_data['compressing_image'] = False
-    context.user_data['compressing_video'] = False
     context.user_data['web_crawler'] = False
+
     # Print a log for debugging
     print(f'User ({update.message.chat.id}) {update.message.from_user.first_name} {update.message.from_user.last_name} in {message_type}: "{text}"')
 
@@ -141,11 +125,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Replace with your bot username
         if BOT_USERNAME in text:
             new_text: str = text.replace(BOT_USERNAME, '').strip()
-            response: str = handle_response(new_text)
+            response: str = getLLMA3Response(new_text)
         else:
             return  # We don't want the bot respond if it's not mentioned in the group
     else:
-        response: str = handle_response(text)
+        response: str = getLLMA3Response(text)
 
     # Reply normal if the message is in private
     print('Bot:', response)
@@ -183,6 +167,8 @@ def wrapped_handle_crawled_data(update, context):
         return handle_crawled_data(update, context)
     elif 'article_extractor' in context.user_data and context.user_data['article_extractor']:
         return handle_extracted_article(update,context)
+    elif 'price_comparator' in context.user_data and context.user_data['price_comparator']:
+        return handle_price_comparator(update,context)
     else:
         return handle_message(update,context)
 
@@ -199,14 +185,12 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler('start', start_command))
     app.add_handler(CommandHandler('help', help_command))
     app.add_handler(CommandHandler('compress_image', compress_image_command))
-    # app.add_handler(CommandHandler('compress_video',compress_video_command))
     app.add_handler(CommandHandler('web_crawler', web_crawler_command))
     app.add_handler(CommandHandler('article_extractor',article_extractor_command))
-
+    app.add_handler(CommandHandler('price_comparator',price_comparator_command))
     # Messages
     app.add_handler(MessageHandler(filters.TEXT, wrapped_handle_crawled_data))
     app.add_handler(MessageHandler(filters.PHOTO, handle_compressed_image))
-    # app.add_handler(MessageHandler(filters.VIDEO, handle_compressed_video))
     app.add_error_handler(error)
 
     print('Polling...')
