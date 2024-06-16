@@ -1,46 +1,44 @@
-from chatterbot import ChatBot
-from chatterbot.trainers import ChatterBotCorpusTrainer
+# # LLM - llma2 
+# from langchain.prompts import PromptTemplate
+# from langchain_community.llms import CTransformers
 
-# Create a new chat bot
-chatbot = ChatBot('MyBot')
+# llm=CTransformers(model='models/llama-2-7b-chat.ggmlv3.q2_K.bin',
+#                       model_type='llama',
+#                       config={'max_new_tokens':250,
+#                               'temperature':0.01})
 
-# Create a new trainer for the chatbot
-trainer = ChatterBotCorpusTrainer(chatbot)
+# def getLLamaResponse(question):
+#     formatted_prompt = f"{question} ?"
+#     response = llm.invoke(formatted_prompt)
+#     # print(response)
+#     return response
 
-# Train the chatbot on English language data
-trainer.train('chatterbot.corpus.english')
-
-def get_chatterbot_response(user_input):
-    # Get a response from the chatbot
-    response = chatbot.get_response(user_input)
-    return str(response)
-
-def handle_response(text: str) -> str:
-    # Create your own response logic
-    processed: str = text.lower()
-
-    return get_chatterbot_response(processed)
+# # Example usage
+# # getLLamaResponse(str, 50)
 
 
-#below code is to integrate chat gpt 
-# import openai
+import requests
 
-# # Set up your OpenAI API key
-# openai.api_key = 'YOUR_OPENAI_API_KEY'  # Replace with your actual API key
+API_URL = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
+headers = {"Authorization": "Bearer "}
 
-# def get_chatgpt_response(user_input):
-#     # Use OpenAI GPT to generate a response
-#     response = openai.Completion.create(
-#         engine="text-davinci-003",  # Choose the appropriate engine
-#         prompt=user_input,
-#         max_tokens=50  # Adjust as needed
-#     )
 
-#     return response.choices[0].text.strip()
 
-# def handle_response(text: str) -> str:
-#     # Create your own response logic
-#     processed = text.lower()
+def query(payload):
+	response = requests.post(API_URL, headers=headers, json=payload)
+	return response.json()
 
-#     # Use ChatGPT for generating responses
-#     return get_chatgpt_response(processed)
+def getLLMA3Response(question):
+
+    output = query({
+        "inputs":question,
+        "parameters": {
+            "temperature": 0.2,
+        }
+    })
+
+    return output[0]['generated_text']
+
+
+
+# print(getLLMA3Response("Hi"))
